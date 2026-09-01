@@ -12,7 +12,6 @@ All methods are safe to call from background threads: a separate connection is
 created per thread and every write is committed immediately.
 """
 
-import json
 import os
 import sqlite3
 import threading
@@ -75,6 +74,7 @@ class Database:
                 os.chmod(self.path, 0o600)
         self._local = threading.local()
         self._lock = threading.Lock()
+        self._connections = []
         self._shared = None
         if self.path == ":memory:":
             # An in-memory database only exists for as long as its connection,
@@ -87,6 +87,7 @@ class Database:
         conn = sqlite3.connect(self.path, timeout=10, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
+        self._connections.append(conn)
         return conn
 
     def connection(self):
@@ -100,13 +101,13 @@ class Database:
         return conn
 
     def close(self):
-        conn = self._shared if self._shared is not None else getattr(
-            self._local, "conn", None
-        )
-        if conn is not None:
+        """Close every connection opened by the app, including worker threads."""
+        with self._lock:
+            connections, self._connections = self._connections, []
+        for conn in connections:
             conn.close()
         self._shared = None
-        self._local.conn = None
+        self._local = threading.local()
 
     # -- settings ---------------------------------------------------------
     def set_setting(self, key, value):
@@ -212,7 +213,3 @@ def visit_payload(visit):
         "client_reference": str(visit.get("id", "")),
         "created_at": visit.get("created_at"),
     }
-
-
-def dumps(payload):
-    return json.dumps(payload, sort_keys=True)
