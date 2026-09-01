@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Buildozer / python-for-android build output
+.buildozer/
+bin/
+
+# Local data
+*.db
+*.db-wal
+*.db-shm
+.kivy/
